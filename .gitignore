@@ -1,2 +1,41 @@
 .windsurf/workflows
 .atl
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+*.local
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# Node / frontend
+node_modules/
+dist/
+dist-ssr/
+coverage/
+*.tsbuildinfo
+.vite/
+.vitest/
+.eslintcache
+
+# Go
+bin/
+*.test
+*.out
+*.prof
+coverage.out
+vendor/
+
+# Databases and local runtime state
+*.db
+*.db-*
+*.sqlite
+*.sqlite3
+*.sqlite3-*
+tmp/
+temp/

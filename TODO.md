@@ -50,14 +50,14 @@ Make the repository ready for multi-package development without changing product
 ### Verification / tests
 
 - [x] `packages/web-spa`: run type-check script.
-- [ ] `packages/web-spa`: run unit test script. Current result: `bun run test:unit` exits 1 because Vitest finds no test files.
+- [x] `packages/web-spa`: run unit test script.
 - [x] `packages/web-spa`: run build script.
 - [x] Confirm no backend/CLI code has been added accidentally in this phase.
 
 ### Exit criteria
 
 - [x] A new contributor can identify where backend, CLI, and SPA code will live.
-- [ ] Existing SPA still builds/tests as before. Build and type-check pass; unit test script needs at least one test or config allowing no tests.
+- [x] Existing SPA still builds/tests as before.
 
 ## Phase 1 — Server foundation and database migrations
 
