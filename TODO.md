@@ -74,21 +74,21 @@ Create the Go backend shell with persistence primitives needed by every later fe
 
 ### Deliverables
 
-- `packages/server/go.mod` and server entrypoint.
-- HTTP routing structure for `/api/v1/*` and `/healthz`.
-- Migration files covering MVP tables from `docs/docs/SPECS.md`.
-- DB package with migration and test helpers.
+- [x] `packages/server/go.mod` and server entrypoint.
+- [x] HTTP routing structure for `/api/v1/*` and `/healthz`.
+- [x] Migration files covering MVP tables from `docs/docs/SPECS.md`.
+- [x] DB package with migration and test helpers.
 
 ### Verification / tests
 
-- Go unit tests for config parsing, health handler, and migration application against `t.TempDir()` SQLite DB.
-- Migration test proves schema creates all MVP tables and key indexes.
-- `go test ./...` from `packages/server` passes.
+- [x] Go unit tests for config parsing, health handler, and migration application against `t.TempDir()` SQLite DB.
+- [x] Migration test proves schema creates all MVP tables and key indexes.
+- [x] `go test ./...` from `packages/server` passes.
 
 ### Exit criteria
 
-- Server starts locally and reports healthy.
-- Test DB can migrate from empty state deterministically.
+- [x] Server starts locally and reports healthy.
+- [x] Test DB can migrate from empty state deterministically.
 
 ## Phase 2 — Provider abstraction and skills/harness core
 
