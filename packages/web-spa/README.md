@@ -1,6 +1,11 @@
 # web-spa
 
-This template should help get you started developing with Vue 3 in Vite.
+Temporary Vue smoke dashboard for manually checking the currently available backend endpoints.
+
+The SPA calls same-origin paths and Vite proxies them to the Go server during development:
+
+- `GET /healthz`
+- `GET /api/v1/skills`
 
 ## Recommended IDE Setup
 
@@ -32,8 +37,10 @@ bun install
 ### Compile and Hot-Reload for Development
 
 ```sh
-bun dev
+bun run dev
 ```
+
+Run the backend separately on the default `localhost:8080` before opening the Vite URL.
 
 ### Type-Check, Compile and Minify for Production
 

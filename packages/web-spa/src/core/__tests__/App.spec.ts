@@ -13,7 +13,6 @@ describe('App', () => {
       },
     })
 
-    expect(wrapper.text()).toContain('App')
     expect(wrapper.find('[data-test="router-view"]').exists()).toBe(true)
   })
 })

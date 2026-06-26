@@ -1,7 +1,7 @@
-<script setup lang="ts"></script>
+<script setup lang="ts">
+import SmokeDashboard from '@modules/smoke-dashboard/SmokeDashboard.vue'
+</script>
 
 <template>
-  <div>
-    <h1>index</h1>
-  </div>
+  <SmokeDashboard />
 </template>

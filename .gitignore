@@ -12,6 +12,8 @@
 Thumbs.db
 *.swp
 *.swo
+__pycache__/
+*.py[cod]
 
 # Node / frontend
 node_modules/

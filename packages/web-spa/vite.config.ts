@@ -8,6 +8,12 @@ import tailwindcss from '@tailwindcss/vite'
 
 // https://vite.dev/config/
 export default defineConfig({
+  server: {
+    proxy: {
+      '/healthz': 'http://localhost:8080',
+      '/api': 'http://localhost:8080',
+    },
+  },
   plugins: [
     vue(),
     VueRouter(),
