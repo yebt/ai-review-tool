@@ -127,6 +127,17 @@ func TestNewGitLabClientRejectsTokenEnvValueInsteadOfReference(t *testing.T) {
 	assertPlatformErrorCode(t, err, ErrorInvalidProjectURL)
 }
 
+func TestGitLabFetchMergeRequestContextClarifiesMissingTokenOnUnauthorized(t *testing.T) {
+	server := newFakeGitLabServer(t, fakeGitLabConfig{metadataStatus: http.StatusUnauthorized})
+	client := newTestGitLabClient(t, GitLabConfig{BaseURL: server.URL, TokenEnv: "CO_REVIEW_GITLAB_TOKEN_TEST", HTTPClient: server.HTTPClient})
+
+	_, err := client.FetchMergeRequestContext(context.Background(), "group/project", 7)
+	assertPlatformErrorCode(t, err, ErrorUnauthorized)
+	if !strings.Contains(err.Error(), "no token is configured") || !strings.Contains(err.Error(), "CO_REVIEW_GITLAB_TOKEN_TEST") {
+		t.Fatalf("error = %v, want missing-token guidance", err)
+	}
+}
+
 func TestGitLabFetchMergeRequestContextErrorResponses(t *testing.T) {
 	t.Parallel()
 

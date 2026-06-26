@@ -50,6 +50,8 @@ func TestMigrateCreatesMVPSchema(t *testing.T) {
 			assertIndexExists(t, database, index)
 		})
 	}
+
+	assertColumnExists(t, database, "reviews", "error")
 }
 
 func TestMigrateIsIdempotent(t *testing.T) {
@@ -98,4 +100,30 @@ func assertIndexExists(t *testing.T, database *sql.DB, index string) {
 	if err != nil {
 		t.Fatalf("index %s does not exist: %v", index, err)
 	}
+}
+
+func assertColumnExists(t *testing.T, database *sql.DB, table string, column string) {
+	t.Helper()
+	rows, err := database.Query("PRAGMA table_info(" + table + ")")
+	if err != nil {
+		t.Fatalf("read columns for %s: %v", table, err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var cid int
+		var name, columnType string
+		var notNull int
+		var defaultValue any
+		var pk int
+		if err := rows.Scan(&cid, &name, &columnType, &notNull, &defaultValue, &pk); err != nil {
+			t.Fatalf("scan column info: %v", err)
+		}
+		if name == column {
+			return
+		}
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("iterate columns: %v", err)
+	}
+	t.Fatalf("column %s.%s does not exist", table, column)
 }

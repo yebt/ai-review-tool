@@ -19,6 +19,7 @@ const defaultGitLabBaseURL = "https://gitlab.com"
 type GitLabClient struct {
 	baseURL    *url.URL
 	token      string
+	tokenEnv   string
 	httpClient *http.Client
 }
 
@@ -50,7 +51,7 @@ func NewGitLabClient(cfg GitLabConfig) (*GitLabClient, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &GitLabClient{baseURL: parsed, token: token, httpClient: client}, nil
+	return &GitLabClient{baseURL: parsed, token: token, tokenEnv: strings.TrimSpace(cfg.TokenEnv), httpClient: client}, nil
 }
 
 func resolveGitLabToken(cfg GitLabConfig) (string, error) {
@@ -226,7 +227,7 @@ func (c *GitLabClient) getJSON(ctx context.Context, apiPath string, target any) 
 	defer resp.Body.Close()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return gitLabStatusError(resp)
+		return c.gitLabStatusError(resp)
 	}
 	if err := json.NewDecoder(resp.Body).Decode(target); err != nil {
 		return platformError(ErrorMalformedResponse, err.Error(), resp.StatusCode)
@@ -234,7 +235,7 @@ func (c *GitLabClient) getJSON(ctx context.Context, apiPath string, target any) 
 	return nil
 }
 
-func gitLabStatusError(resp *http.Response) error {
+func (c *GitLabClient) gitLabStatusError(resp *http.Response) error {
 	body, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
 	message := strings.TrimSpace(string(body))
 	if message == "" {
@@ -242,6 +243,13 @@ func gitLabStatusError(resp *http.Response) error {
 	}
 	switch resp.StatusCode {
 	case http.StatusUnauthorized, http.StatusForbidden:
+		if c.token == "" {
+			envName := c.tokenEnv
+			if envName == "" {
+				envName = "CO_REVIEW_GITLAB_TOKEN"
+			}
+			message = fmt.Sprintf("GitLab API returned %s and no token is configured; set %s for private merge requests: %s", http.StatusText(resp.StatusCode), envName, message)
+		}
 		return platformError(ErrorUnauthorized, message, resp.StatusCode)
 	case http.StatusNotFound:
 		return platformError(ErrorNotFound, message, resp.StatusCode)

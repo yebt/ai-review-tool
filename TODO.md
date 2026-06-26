@@ -11,8 +11,8 @@ Build a testable MVP of Co-Review v2 that can review GitLab merge requests, gene
 | Repository layout | Root contains `docs/`, `packages/`, skill/config folders, and this TODO. |
 | Product spec | Main architecture/specification lives in `docs/docs/SPECS.md`. |
 | Packages | `packages/` contains `server/` and `web-spa/`; `cli/` is still planned. |
-| Web SPA | Vue 3 + Vite + Pinia + Tailwind CSS v4 + Vitest scaffold exists, with minimal routes and placeholder UI. |
-| Backend | `packages/server` exists as a Go backend with health/API routing, SQLite migrations, provider abstraction, skill loading, and harness core. |
+| Web SPA | Vue 3 + Vite + Pinia + Tailwind CSS v4 + Vitest exists, with a brutalist smoke dashboard for `/healthz` and `/api/v1/skills`. |
+| Backend | `packages/server` exists as a Go backend with health/API routing, SQLite migrations, provider abstraction, skill loading, harness core, and GitLab MR diff ingestion. |
 | CLI | No Go CLI package exists yet. |
 | Database | SQLite connection and embedded MVP migrations exist in `packages/server`. |
 | MVP priority | GitLab merge request review and inline comments first; GitHub/Telegram later. |
@@ -193,6 +193,41 @@ Do not store real values for these variables in the repo.
 - [x] Given a GitLab project and MR IID, the server can fetch reviewable diff context without publishing anything.
 - [x] Inline comment positions can be computed for generated findings.
 
+## Phase 3.5 — Backend smoke UI
+
+### Objective
+
+Expose the currently available backend endpoints in the browser so API shape issues can be caught before the full review UI exists.
+
+### Scope
+
+- Build a temporary minimal brutalist dashboard in `packages/web-spa`.
+- Test only existing backend endpoints: `/healthz` and `/api/v1/skills`.
+- Keep real GitLab review workflow UI out of scope until Phase 7.
+
+### Deliverables
+
+- [x] Smoke dashboard module with focused Vue components and `useSmokeChecks()` composable.
+- [x] Vite dev proxy for same-origin calls to the Go server.
+- [x] Zod validation for `/healthz` and `/api/v1/skills` response shapes.
+- [x] Metadata-only skills rendering without prompt body or internal file path leakage.
+- [x] Brutalist UI states for idle, loading, success, error, and refresh.
+- [x] Removed tracked Python `.pyc` cache files from web-spa skill copies and ignored future cache artifacts.
+
+### Verification / tests
+
+- [x] Vitest component tests mock `fetch` and cover success, endpoint error, refresh, and validation failure.
+- [x] `bun run lint` passes in `packages/web-spa`.
+- [x] `bun run type-check` passes in `packages/web-spa`.
+- [x] `bun run test:unit` passes in `packages/web-spa`.
+- [x] `bun run build` passes in `packages/web-spa`.
+- [x] `make spa-test` and `make spa-build` pass from the repo root.
+
+### Exit criteria
+
+- [x] A developer can run `make server-run` and `make spa-dev` to inspect backend health and loaded skills in the browser.
+- [x] The smoke UI clearly states that full review workflow features are not available yet.
+
 ## Phase 4 — Review orchestration, persistence, and SSE
 
 ### Objective
@@ -201,29 +236,29 @@ Generate and persist a complete review while streaming progress to clients.
 
 ### Scope
 
-- Implement review creation for GitLab MRs.
-- Run 4R harnesses concurrently with cancellation and per-agent status.
-- Persist reviews, scores, verdict, generated comments, and harness errors.
-- Expose review detail, comments, history, and SSE progress endpoints.
+- [x] Implement review creation for GitLab MRs.
+- [x] Run 4R harnesses concurrently with cancellation and per-agent status.
+- [x] Persist reviews, scores, verdict, generated comments, and harness errors.
+- [x] Expose review detail, comments, history, and SSE progress endpoints.
 
 ### Deliverables
 
-- `POST /api/v1/reviews` for manual GitLab MR review.
-- `GET /api/v1/reviews`, `GET /api/v1/reviews/:id`, `GET /api/v1/reviews/:id/comments`.
-- `GET /api/v1/reviews/:id/events` SSE stream.
-- Review state transitions: `pending -> running -> generated|awaiting_approval|error`.
+- [x] `POST /api/v1/reviews` for manual GitLab MR review.
+- [x] `GET /api/v1/reviews`, `GET /api/v1/reviews/:id`, `GET /api/v1/reviews/:id/comments`.
+- [x] `GET /api/v1/reviews/:id/events` SSE stream.
+- [x] Review state transitions: `pending -> running -> generated|awaiting_approval|error`.
 
 ### Verification / tests
 
-- Orchestrator tests using fake provider and fake platform client.
-- Persistence tests for review/comment state transitions.
-- SSE handler test validates event names and JSON payload shape.
-- API handler tests for success, invalid MR input, platform failure, provider failure, and cancellation.
+- [x] Orchestrator tests using fake provider and fake platform client.
+- [x] Persistence tests for review/comment state transitions.
+- [x] SSE handler test validates event names and JSON payload shape.
+- [x] API handler tests for success, invalid MR input, platform failure, and provider failure. Cancellation remains covered through request context propagation and harness timeout behavior rather than a dedicated API test.
 
 ### Exit criteria
 
-- A fake GitLab MR can be reviewed end-to-end with stored findings and observable SSE progress.
-- Generated comments remain pending until explicit approval/publish action.
+- [x] A fake GitLab MR can be reviewed end-to-end with stored findings and observable SSE progress.
+- [x] Generated comments remain pending until explicit approval/publish action.
 
 ## Phase 5 — Repo configuration and repo memory MVP
 

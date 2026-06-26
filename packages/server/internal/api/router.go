@@ -1,20 +1,153 @@
 package api
 
 import (
+	"database/sql"
+	"encoding/json"
 	"net/http"
+	"strings"
 
+	"co-review/server/internal/events"
+	"co-review/server/internal/reviews"
 	"co-review/server/internal/skills"
 	skillassets "co-review/server/skills"
 )
 
+type RouterDeps struct {
+	Reviews *reviews.Service
+	Broker  *events.Broker
+}
+
 // NewRouter creates the server HTTP routing tree.
 func NewRouter() http.Handler {
+	return NewRouterWithDeps(RouterDeps{})
+}
+
+func NewRouterWithDeps(deps RouterDeps) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", healthHandler)
 	mux.HandleFunc("GET /api/v1/skills", skillsHandler)
+	mux.HandleFunc("POST /api/v1/reviews", createReviewHandler(deps.Reviews))
+	mux.HandleFunc("GET /api/v1/reviews", listReviewsHandler(deps.Reviews))
+	mux.HandleFunc("GET /api/v1/reviews/", reviewSubresourceHandler(deps.Reviews, deps.Broker))
 	mux.HandleFunc("/api/v1/", apiNotFoundHandler)
 	mux.HandleFunc("/", rootNotFoundHandler)
 	return mux
+}
+
+func createReviewHandler(service *reviews.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if service == nil {
+			writeError(w, http.StatusNotImplemented, "reviews_not_configured", "Review service is not configured", r.URL.Path)
+			return
+		}
+		var req reviews.CreateRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_json", "Request body must be valid JSON", r.URL.Path)
+			return
+		}
+		review, err := service.Create(r.Context(), req)
+		if err != nil {
+			if reviews.IsInvalidInput(err) {
+				writeError(w, http.StatusBadRequest, "invalid_review_request", err.Error(), r.URL.Path)
+				return
+			}
+			if review.ID != "" {
+				writeJSON(w, http.StatusAccepted, map[string]any{"review": review, "error": err.Error()})
+				return
+			}
+			writeError(w, http.StatusBadGateway, "review_create_failed", err.Error(), r.URL.Path)
+			return
+		}
+		writeJSON(w, http.StatusCreated, map[string]any{"review": review})
+	}
+}
+
+func listReviewsHandler(service *reviews.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if service == nil {
+			writeError(w, http.StatusNotImplemented, "reviews_not_configured", "Review service is not configured", r.URL.Path)
+			return
+		}
+		items, err := service.List(r.Context())
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "reviews_list_failed", err.Error(), r.URL.Path)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"reviews": items})
+	}
+}
+
+func reviewSubresourceHandler(service *reviews.Service, broker *events.Broker) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if service == nil {
+			writeError(w, http.StatusNotImplemented, "reviews_not_configured", "Review service is not configured", r.URL.Path)
+			return
+		}
+		path := strings.TrimPrefix(r.URL.Path, "/api/v1/reviews/")
+		parts := strings.Split(strings.Trim(path, "/"), "/")
+		if len(parts) == 0 || parts[0] == "" {
+			apiNotFoundHandler(w, r)
+			return
+		}
+		reviewID := parts[0]
+		if len(parts) == 1 && r.Method == http.MethodGet {
+			review, err := service.Get(r.Context(), reviewID)
+			if err == sql.ErrNoRows {
+				writeError(w, http.StatusNotFound, "review_not_found", "Review not found", r.URL.Path)
+				return
+			}
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, "review_get_failed", err.Error(), r.URL.Path)
+				return
+			}
+			writeJSON(w, http.StatusOK, map[string]any{"review": review})
+			return
+		}
+		if len(parts) == 2 && parts[1] == "comments" && r.Method == http.MethodGet {
+			comments, err := service.Comments(r.Context(), reviewID)
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, "review_comments_failed", err.Error(), r.URL.Path)
+				return
+			}
+			writeJSON(w, http.StatusOK, map[string]any{"comments": comments})
+			return
+		}
+		if len(parts) == 2 && parts[1] == "events" && r.Method == http.MethodGet {
+			serveReviewEvents(w, r, broker, reviewID)
+			return
+		}
+		apiNotFoundHandler(w, r)
+	}
+}
+
+func serveReviewEvents(w http.ResponseWriter, r *http.Request, broker *events.Broker, reviewID string) {
+	if broker == nil {
+		writeError(w, http.StatusNotImplemented, "events_not_configured", "Review events are not configured", r.URL.Path)
+		return
+	}
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		writeError(w, http.StatusInternalServerError, "sse_not_supported", "Streaming is not supported", r.URL.Path)
+		return
+	}
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	ch, unsubscribe := broker.Subscribe(reviewID)
+	defer unsubscribe()
+	for {
+		select {
+		case <-r.Context().Done():
+			return
+		case event, ok := <-ch:
+			if !ok {
+				return
+			}
+			_, _ = w.Write([]byte("event: " + event.Name + "\n"))
+			_, _ = w.Write([]byte("data: " + string(event.Data) + "\n\n"))
+			flusher.Flush()
+		}
+	}
 }
 
 func healthHandler(w http.ResponseWriter, _ *http.Request) {

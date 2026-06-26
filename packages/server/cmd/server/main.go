@@ -12,6 +12,12 @@ import (
 
 	"co-review/server/internal/api"
 	"co-review/server/internal/bootstrap"
+	"co-review/server/internal/events"
+	"co-review/server/internal/platform"
+	"co-review/server/internal/provider"
+	"co-review/server/internal/reviews"
+	"co-review/server/internal/skills"
+	skillassets "co-review/server/skills"
 )
 
 func main() {
@@ -27,9 +33,22 @@ func main() {
 	}
 	defer database.Close()
 
+	loadedSkills, err := skills.LoadFS(skillassets.FS, ".")
+	if err != nil {
+		logger.Error("load review skills failed", "error", err)
+		os.Exit(1)
+	}
+	gitlabClient, err := platform.NewGitLabClient(platform.GitLabConfig{TokenEnv: "CO_REVIEW_GITLAB_TOKEN"})
+	if err != nil {
+		logger.Error("configure GitLab client failed", "error", err)
+		os.Exit(1)
+	}
+	broker := events.NewBroker()
+	reviewService := &reviews.Service{Repo: reviews.NewRepository(database), Platform: gitlabClient, Provider: provider.DeterministicReviewProvider{}, Skills: loadedSkills, Broker: broker}
+
 	server := &http.Server{
 		Addr:              cfg.ListenAddr(),
-		Handler:           api.NewRouter(),
+		Handler:           api.NewRouterWithDeps(api.RouterDeps{Reviews: reviewService, Broker: broker}),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
