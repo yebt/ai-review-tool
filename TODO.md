@@ -10,11 +10,11 @@ Build a testable MVP of Co-Review v2 that can review GitLab merge requests, gene
 |------|---------------|
 | Repository layout | Root contains `docs/`, `packages/`, skill/config folders, and this TODO. |
 | Product spec | Main architecture/specification lives in `docs/docs/SPECS.md`. |
-| Packages | `packages/` currently contains only `web-spa/`. |
+| Packages | `packages/` contains `server/` and `web-spa/`; `cli/` is still planned. |
 | Web SPA | Vue 3 + Vite + Pinia + Tailwind CSS v4 + Vitest scaffold exists, with minimal routes and placeholder UI. |
-| Backend | No Go backend package exists yet. |
+| Backend | `packages/server` exists as a Go backend with health/API routing, SQLite migrations, provider abstraction, skill loading, and harness core. |
 | CLI | No Go CLI package exists yet. |
-| Database | No migrations or DB access layer exist yet. |
+| Database | SQLite connection and embedded MVP migrations exist in `packages/server`. |
 | MVP priority | GitLab merge request review and inline comments first; GitHub/Telegram later. |
 
 ## Intended package layout
@@ -106,22 +106,22 @@ Run deterministic review agents behind a provider interface before touching GitL
 
 ### Deliverables
 
-- Provider interfaces and registry for Claude/OpenAI-compatible providers, plus fake provider.
-- Skill loader for R1 Risk, R2 Readability, R3 Reliability, and R4 Resilience.
-- JSON schemas for agent outputs.
-- Harness result model with attempts, duration, token metadata, output, and error.
+- [x] Provider interfaces and registry for Claude/OpenAI-compatible providers, plus fake provider.
+- [x] Skill loader for R1 Risk, R2 Readability, R3 Reliability, and R4 Resilience.
+- [x] JSON schemas for agent outputs.
+- [x] Harness result model with attempts, duration, token metadata, output, and error.
 
 ### Verification / tests
 
-- Table-driven Go tests for provider registry resolution.
-- Skill loader tests for valid frontmatter, missing files, and invalid metadata.
-- Harness tests for success, timeout, provider error retry, invalid JSON, and invalid schema.
-- No real model API calls in unit tests.
+- [x] Table-driven Go tests for provider registry resolution.
+- [x] Skill loader tests for valid frontmatter, missing files, and invalid metadata.
+- [x] Harness tests for success, timeout, provider error retry, invalid JSON, and invalid schema.
+- [x] No real model API calls in unit tests.
 
 ### Exit criteria
 
-- A fake provider can produce validated 4R outputs through the harness.
-- Harness failures are stored/returned as structured errors, not panics.
+- [x] A fake provider can produce validated 4R outputs through the harness.
+- [x] Harness failures are stored/returned as structured errors, not panics.
 
 ## Phase 3 — GitLab platform adapter and MR diff ingestion
 

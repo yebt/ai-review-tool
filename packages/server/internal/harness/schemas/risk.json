@@ -1,0 +1,30 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": ["dimension", "findings", "summary", "verdict"],
+  "additionalProperties": true,
+  "properties": {
+    "dimension": { "type": "string", "enum": ["risk"] },
+    "score": { "type": "integer", "minimum": 0, "maximum": 100 },
+    "findings": { "type": "array", "items": { "$ref": "#/definitions/finding" } },
+    "summary": { "type": "string", "minLength": 1 },
+    "verdict": { "type": "string", "enum": ["pass", "needs_changes", "block"] }
+  },
+  "definitions": {
+    "finding": {
+      "type": "object",
+      "required": ["severity", "file", "evidence", "why", "inline_comment"],
+      "additionalProperties": true,
+      "properties": {
+        "severity": { "type": "string", "enum": ["BLOCKER", "CRITICAL", "WARNING", "SUGGESTION"] },
+        "file": { "type": "string", "minLength": 1 },
+        "line_start": { "type": "integer", "minimum": 0 },
+        "line_end": { "type": "integer", "minimum": 0 },
+        "evidence": { "type": "string", "minLength": 5 },
+        "why": { "type": "string", "minLength": 10 },
+        "suggestion_snippet": { "type": "string" },
+        "inline_comment": { "type": "boolean" }
+      }
+    }
+  }
+}

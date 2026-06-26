@@ -2,7 +2,10 @@ module co-review/server
 
 go 1.23
 
-require modernc.org/sqlite v1.34.5
+require (
+	github.com/santhosh-tekuri/jsonschema/v5 v5.3.1
+	modernc.org/sqlite v1.34.5
+)
 
 require (
 	github.com/dustin/go-humanize v1.0.1 // indirect
