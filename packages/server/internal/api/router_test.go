@@ -71,9 +71,16 @@ func TestSkillsHandlerReturnsEmbeddedSkillsOutsideServerCWD(t *testing.T) {
 
 	var body struct {
 		Skills []struct {
-			Name      string `json:"Name"`
-			Dimension string `json:"Dimension"`
-			FilePath  string `json:"FilePath"`
+			Name        string `json:"name"`
+			Description string `json:"description"`
+			Dimension   string `json:"dimension"`
+			Model       string `json:"model"`
+			Body        string `json:"body"`
+			FilePath    string `json:"filePath"`
+			Harness     struct {
+				TimeoutSeconds int    `json:"timeout_seconds"`
+				OutputSchema   string `json:"output_schema"`
+			} `json:"harness"`
 		} `json:"skills"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
@@ -93,8 +100,17 @@ func TestSkillsHandlerReturnsEmbeddedSkillsOutsideServerCWD(t *testing.T) {
 		if want[skill.Name] != skill.Dimension {
 			t.Fatalf("skill %q dimension = %q, want %q", skill.Name, skill.Dimension, want[skill.Name])
 		}
-		if skill.FilePath == "" {
-			t.Fatalf("skill %q has empty file path", skill.Name)
+		if skill.Description == "" || skill.Model == "" {
+			t.Fatalf("skill %q missing public metadata: %+v", skill.Name, skill)
+		}
+		if skill.Harness.TimeoutSeconds == 0 || skill.Harness.OutputSchema == "" {
+			t.Fatalf("skill %q missing harness metadata: %+v", skill.Name, skill.Harness)
+		}
+		if skill.Body != "" {
+			t.Fatalf("skill %q leaked prompt body", skill.Name)
+		}
+		if skill.FilePath != "" {
+			t.Fatalf("skill %q leaked internal file path %q", skill.Name, skill.FilePath)
 		}
 		delete(want, skill.Name)
 	}

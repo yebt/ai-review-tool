@@ -94,7 +94,7 @@ spa-preview: ## Preview SPA production build.
 
 server-test: ## Test server package.
 	@printf '\033[1;35m==> Testing server\033[0m\n'
-	@cd $(SERVER_DIR) && $(GO) test ./...
+	@cd $(SERVER_DIR) && $(GO) test -count=1 ./...
 
 server-build: ## Build server package.
 	@printf '\033[1;35m==> Building server\033[0m\n'

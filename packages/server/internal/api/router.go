@@ -31,7 +31,53 @@ func skillsHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "skills_load_failed", "Could not load embedded skills", r.URL.Path)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"skills": loaded})
+	response := make([]skillResponse, 0, len(loaded))
+	for _, skill := range loaded {
+		response = append(response, skillResponse{
+			Name:        skill.Name,
+			Description: skill.Description,
+			Dimension:   skill.Dimension,
+			Model:       skill.Model,
+			Readonly:    skill.Readonly,
+			Background:  skill.Background,
+			Harness: skillHarnessResponse{
+				TimeoutSeconds:     skill.Harness.TimeoutSeconds,
+				MaxRetries:         skill.Harness.MaxRetries,
+				OutputSchema:       skill.Harness.OutputSchema,
+				RequireEvidence:    skill.Harness.RequireEvidence,
+				MinFindingsQuality: skill.Harness.MinFindingsQuality,
+			},
+			Memory: skillMemoryResponse{
+				InjectContext: skill.Memory.InjectContext,
+				SaveFindings:  skill.Memory.SaveFindings,
+			},
+		})
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"skills": response})
+}
+
+type skillResponse struct {
+	Name        string               `json:"name"`
+	Description string               `json:"description"`
+	Dimension   string               `json:"dimension"`
+	Model       string               `json:"model"`
+	Readonly    bool                 `json:"readonly"`
+	Background  bool                 `json:"background"`
+	Harness     skillHarnessResponse `json:"harness"`
+	Memory      skillMemoryResponse  `json:"memory"`
+}
+
+type skillHarnessResponse struct {
+	TimeoutSeconds     int    `json:"timeout_seconds"`
+	MaxRetries         int    `json:"max_retries"`
+	OutputSchema       string `json:"output_schema"`
+	RequireEvidence    bool   `json:"require_evidence"`
+	MinFindingsQuality string `json:"min_findings_quality"`
+}
+
+type skillMemoryResponse struct {
+	InjectContext bool `json:"inject_context"`
+	SaveFindings  bool `json:"save_findings"`
 }
 
 func rootNotFoundHandler(w http.ResponseWriter, r *http.Request) {

@@ -6,6 +6,9 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"testing/fstest"
+
+	skillassets "co-review/server/skills"
 )
 
 func TestLoadFileValidFrontmatter(t *testing.T) {
@@ -38,34 +41,85 @@ func TestLoadFileMissingFile(t *testing.T) {
 
 func TestLoadFileInvalidMetadata(t *testing.T) {
 	t.Parallel()
-	dir := t.TempDir()
 	tests := []struct {
 		name string
 		body string
 	}{
 		{name: "missing frontmatter", body: "no frontmatter"},
-		{name: "bad timeout", body: validSkillMarkdown("review-risk", "risk") + "\n"},
+		{name: "invalid frontmatter boundary", body: replace(validSkillMarkdown("review-risk", "risk"), "---\n\nBody.", "---not-a-boundary\n\nBody.")},
+		{name: "bad timeout", body: replace(validSkillMarkdown("review-risk", "risk"), "timeout_seconds: 45", "timeout_seconds: nope")},
+		{name: "negative retries", body: replace(validSkillMarkdown("review-risk", "risk"), "max_retries: 2", "max_retries: -1")},
+		{name: "invalid require evidence", body: replace(validSkillMarkdown("review-risk", "risk"), "require_evidence: true", "require_evidence: sometimes")},
+		{name: "invalid min quality", body: replace(validSkillMarkdown("review-risk", "risk"), "min_findings_quality: strict", "min_findings_quality: medium")},
 		{name: "wrong schema", body: validSkillMarkdown("review-risk", "readability")},
+		{name: "missing body", body: strings.ReplaceAll(validSkillMarkdown("review-risk", "risk"), "Body.\n", "")},
+		{name: "missing required field", body: strings.ReplaceAll(validSkillMarkdown("review-risk", "risk"), "description: Test skill.\n", "")},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			body := tt.body
-			if tt.name == "bad timeout" {
-				body = replace(body, "timeout_seconds: 45", "timeout_seconds: nope")
-			}
+			dir := t.TempDir()
 			path := filepath.Join(dir, tt.name+".md")
-			if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+			if err := os.WriteFile(path, []byte(tt.body), 0o600); err != nil {
 				t.Fatalf("write skill: %v", err)
 			}
 			_, err := LoadFile(path)
 			if err == nil {
 				t.Fatal("LoadFile() error = nil, want error")
 			}
-			if tt.name != "missing frontmatter" && !errors.Is(err, ErrInvalidMetadata) {
+			if strings.Contains(tt.name, "frontmatter") {
+				if !errors.Is(err, ErrMissingFrontmatter) {
+					t.Fatalf("LoadFile() error = %v, want ErrMissingFrontmatter", err)
+				}
+				return
+			}
+			if !errors.Is(err, ErrInvalidMetadata) {
 				t.Fatalf("LoadFile() error = %v, want ErrInvalidMetadata", err)
 			}
 		})
+	}
+}
+
+func TestLoadFSEmbeddedSkills(t *testing.T) {
+	t.Parallel()
+	loaded, err := LoadFS(skillassets.FS, ".")
+	if err != nil {
+		t.Fatalf("LoadFS() error = %v", err)
+	}
+	if len(loaded) != 4 {
+		t.Fatalf("skills count = %d, want 4", len(loaded))
+	}
+
+	want := map[string]string{
+		"review-readability": "readability",
+		"review-reliability": "reliability",
+		"review-resilience":  "resilience",
+		"review-risk":        "risk",
+	}
+	for _, skill := range loaded {
+		if want[skill.Name] != skill.Dimension {
+			t.Fatalf("skill %q dimension = %q, want %q", skill.Name, skill.Dimension, want[skill.Name])
+		}
+		if skill.Body == "" {
+			t.Fatalf("skill %q body is empty", skill.Name)
+		}
+		delete(want, skill.Name)
+	}
+	if len(want) != 0 {
+		t.Fatalf("missing skills: %v", want)
+	}
+}
+
+func TestLoadFSReturnsFirstInvalidSkillError(t *testing.T) {
+	t.Parallel()
+	fsys := fstest.MapFS{
+		"review-risk.md":        {Data: []byte(validSkillMarkdown("review-risk", "risk"))},
+		"review-readability.md": {Data: []byte(replace(validSkillMarkdown("review-readability", "readability"), "output_schema: readability", "output_schema: risk"))},
+	}
+
+	_, err := LoadFS(fsys, ".")
+	if !errors.Is(err, ErrInvalidMetadata) {
+		t.Fatalf("LoadFS() error = %v, want ErrInvalidMetadata", err)
 	}
 }
 

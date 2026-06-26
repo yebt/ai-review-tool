@@ -129,6 +129,15 @@ Run deterministic review agents behind a provider interface before touching GitL
 
 Fetch enough GitLab MR context to review real merge requests and map findings to inline-comment positions.
 
+Phase 3 starts the platform boundary for GitLab only: parse GitLab project/MR inputs, fetch merge request metadata and changed files, and produce an internal diff context that later phases can review. It must not run review orchestration or publish comments yet.
+
+### Non-goals
+
+- No review orchestration, harness fan-out, persistence workflow, or SSE progress; those belong to Phase 4.
+- No publishing comments or GitLab Discussion API writes; publishing belongs to Phase 6.
+- No GitHub adapter yet, except for interface shape notes if they prevent GitLab-specific coupling.
+- No real tokens, secrets, SDK lock-in, or live API dependency in normal unit tests.
+
 ### Scope
 
 - Define platform adapter interface around repo inference, branches, MR metadata, diffs, and inline comment publishing.
@@ -149,6 +158,35 @@ Fetch enough GitLab MR context to review real merge requests and map findings to
 - HTTP fixture tests for GitLab MR metadata, changes, and error responses.
 - Position mapping tests for added/changed lines that can receive inline comments.
 - `testing.Short()` skips any optional live GitLab integration tests.
+
+### Phase 3 execution notes
+
+#### Test strategy
+
+| Area | Expected test shape |
+|------|---------------------|
+| URL parsing | Table-driven tests for HTTPS/SSH GitLab project URLs, namespace paths, `.git` suffixes, and invalid inputs. |
+| MR metadata and changes | `httptest.Server` fake GitLab API with JSON fixtures for happy path, missing MR, unauthorized, and malformed response cases. |
+| Diff position mapping | Fixture tests that map changed lines to `base_sha`, `start_sha`, `head_sha`, old/new paths, and inline-commentable line positions. |
+| Live GitLab smoke tests | Optional external tests only; skip under `testing.Short()` and when env vars are absent. |
+
+Future live-test configuration names, if live tests are added:
+
+- `CO_REVIEW_GITLAB_BASE_URL` — GitLab instance URL, defaulting to `https://gitlab.com` in tests only when explicitly enabled.
+- `CO_REVIEW_GITLAB_TOKEN` — personal/project access token for a disposable test project.
+- `CO_REVIEW_GITLAB_PROJECT_ID` — project ID or URL-escaped path for fixture MR access.
+- `CO_REVIEW_GITLAB_MR_IID` — merge request IID in that disposable project.
+
+Do not store real values for these variables in the repo.
+
+#### Start checklist
+
+- [ ] Define the smallest `PlatformClient` contract needed to fetch MR context without publish operations.
+- [ ] Add GitLab URL/project inference tests before implementation.
+- [ ] Add fake GitLab API fixtures with `httptest.Server`; normal tests must not call the network.
+- [ ] Model diff context separately from provider/harness output so Phase 4 can consume it without GitLab-specific types.
+- [ ] Implement line-position mapping tests before wiring API handlers.
+- [ ] Keep publish/comment-write methods out of Phase 3 implementation.
 
 ### Exit criteria
 

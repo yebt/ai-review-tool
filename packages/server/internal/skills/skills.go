@@ -131,13 +131,12 @@ func splitFrontmatter(content string) (string, string, error) {
 		return "", "", ErrMissingFrontmatter
 	}
 	rest := strings.TrimPrefix(content, "---\n")
-	idx := strings.Index(rest, "\n---")
+	idx := strings.Index(rest, "\n---\n")
 	if idx < 0 {
 		return "", "", ErrMissingFrontmatter
 	}
 	frontmatter := rest[:idx]
-	body := strings.TrimPrefix(rest[idx:], "\n---")
-	body = strings.TrimPrefix(body, "\n")
+	body := rest[idx+len("\n---\n"):]
 	return frontmatter, body, nil
 }
 
@@ -259,6 +258,9 @@ func assignMemory(cfg *MemoryConfig, key string, value string) error {
 func validate(skill *Skill) error {
 	if skill.Name == "" || skill.Description == "" || skill.Model == "" {
 		return fmt.Errorf("%w: name, description, and model are required", ErrInvalidMetadata)
+	}
+	if skill.Body == "" {
+		return fmt.Errorf("%w: body is required", ErrInvalidMetadata)
 	}
 	dimension, ok := dimensionByName(skill.Name)
 	if !ok {
