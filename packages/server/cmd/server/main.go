@@ -11,30 +11,21 @@ import (
 	"time"
 
 	"co-review/server/internal/api"
-	"co-review/server/internal/config"
-	"co-review/server/internal/db"
+	"co-review/server/internal/bootstrap"
 )
 
 func main() {
+
+	// Logger
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 
-	cfg, err := config.Load()
+	// Boostraping
+	cfg, database, err := bootstrap.Init()
 	if err != nil {
-		logger.Error("load configuration", "error", err)
-		os.Exit(1)
-	}
-
-	database, err := db.Open(cfg.DatabaseURL)
-	if err != nil {
-		logger.Error("open database", "error", err)
+		logger.Error("bootstrap failed", "error", err)
 		os.Exit(1)
 	}
 	defer database.Close()
-
-	if err := db.Migrate(context.Background(), database); err != nil {
-		logger.Error("run migrations", "error", err)
-		os.Exit(1)
-	}
 
 	server := &http.Server{
 		Addr:              cfg.ListenAddr(),
