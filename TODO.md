@@ -147,17 +147,17 @@ Phase 3 starts the platform boundary for GitLab only: parse GitLab project/MR in
 
 ### Deliverables
 
-- `PlatformClient` interface and GitLab implementation.
-- GitLab repo URL inference and MR metadata/diff fetching.
-- Internal diff/position model containing `base_sha`, `start_sha`, `head_sha`, file path, and line mapping.
-- Fake GitLab server/test fixtures for API contract tests.
+- [x] `PlatformClient` interface and GitLab implementation.
+- [x] GitLab repo URL inference and MR metadata/diff fetching.
+- [x] Internal diff/position model containing `base_sha`, `start_sha`, `head_sha`, file path, and line mapping.
+- [x] Fake GitLab server/test fixtures for API contract tests.
 
 ### Verification / tests
 
-- Unit tests for GitLab URL parsing and repo inference.
-- HTTP fixture tests for GitLab MR metadata, changes, and error responses.
-- Position mapping tests for added/changed lines that can receive inline comments.
-- `testing.Short()` skips any optional live GitLab integration tests.
+- [x] Unit tests for GitLab URL parsing and repo inference.
+- [x] HTTP fixture tests for GitLab MR metadata, changes, and error responses.
+- [x] Position mapping tests for added/changed lines that can receive inline comments.
+- [x] `testing.Short()` skips any optional live GitLab integration tests. No live tests were added in Phase 3.
 
 ### Phase 3 execution notes
 
@@ -181,17 +181,17 @@ Do not store real values for these variables in the repo.
 
 #### Start checklist
 
-- [ ] Define the smallest `PlatformClient` contract needed to fetch MR context without publish operations.
-- [ ] Add GitLab URL/project inference tests before implementation.
-- [ ] Add fake GitLab API fixtures with `httptest.Server`; normal tests must not call the network.
-- [ ] Model diff context separately from provider/harness output so Phase 4 can consume it without GitLab-specific types.
-- [ ] Implement line-position mapping tests before wiring API handlers.
-- [ ] Keep publish/comment-write methods out of Phase 3 implementation.
+- [x] Define the smallest `PlatformClient` contract needed to fetch MR context without publish operations.
+- [x] Add GitLab URL/project inference tests before implementation.
+- [x] Add fake GitLab API fixtures with `httptest.Server`; normal tests must not call the network.
+- [x] Model diff context separately from provider/harness output so Phase 4 can consume it without GitLab-specific types.
+- [x] Implement line-position mapping tests before wiring API handlers.
+- [x] Keep publish/comment-write methods out of Phase 3 implementation.
 
 ### Exit criteria
 
-- Given a GitLab project and MR IID, the server can fetch reviewable diff context without publishing anything.
-- Inline comment positions can be computed for generated findings.
+- [x] Given a GitLab project and MR IID, the server can fetch reviewable diff context without publishing anything.
+- [x] Inline comment positions can be computed for generated findings.
 
 ## Phase 4 — Review orchestration, persistence, and SSE
 
