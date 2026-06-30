@@ -260,6 +260,29 @@ Generate and persist a complete review while streaming progress to clients.
 - [x] A fake GitLab MR can be reviewed end-to-end with stored findings and observable SSE progress.
 - [x] Generated comments remain pending until explicit approval/publish action.
 
+## Phase 4.5 — Review operations smoke UI
+
+### Objective
+
+Expose the Phase 4 backend review actions in the SPA for manual testing before the final Phase 7 product UI.
+
+### Scope
+
+- [x] Add a manual GitLab MR review form using `POST /api/v1/reviews`.
+- [x] List review history from `GET /api/v1/reviews`.
+- [x] Select a review and load `GET /api/v1/reviews/:id` plus generated comments from `GET /api/v1/reviews/:id/comments`.
+- [x] Open an EventSource stream for `GET /api/v1/reviews/:id/events` and display review/agent events.
+- [x] Keep current limitations visible: no publish/approval UI, no repo CRUD, no repo memory UI, and backend provider behavior may be deterministic/fake.
+
+### Verification / tests
+
+- [x] Vitest tests mock `fetch` and `EventSource`; no Go server is required for unit tests.
+- [x] Response shapes are validated with Zod for review creation, list, detail, and comments.
+
+### Exit criteria
+
+- [x] A developer can start the local server and SPA, create a fake/deterministic GitLab MR review, inspect comments, and watch selected review events without touching final Phase 7 flows.
+
 ## Phase 5 — Repo configuration and repo memory MVP
 
 ### Objective

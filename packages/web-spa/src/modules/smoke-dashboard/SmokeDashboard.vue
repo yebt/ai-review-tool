@@ -26,8 +26,8 @@ function getSkillKey(skill: ReviewSkill) {
 </script>
 
 <template>
-  <main class="min-h-screen bg-zinc-100 px-4 py-6 text-black sm:px-6 lg:px-8">
-    <div class="mx-auto max-w-6xl space-y-6">
+  <section>
+    <div class="space-y-6">
       <header class="border-4 border-black bg-white p-5 shadow-[8px_8px_0_#000]">
         <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
@@ -126,12 +126,12 @@ function getSkillKey(skill: ReviewSkill) {
         <div class="border-4 border-black bg-white p-5">
           <h2 class="text-xl font-black uppercase">Not available yet</h2>
           <ul class="mt-3 list-square space-y-2 pl-5 font-bold">
-            <li>Review orchestration workflow UI.</li>
+            <li>Approval and publish controls.</li>
             <li>Repository CRUD screens.</li>
-            <li>GitLab merge request submission forms.</li>
+            <li>Repo memory management.</li>
           </ul>
         </div>
       </section>
     </div>
-  </main>
+  </section>
 </template>

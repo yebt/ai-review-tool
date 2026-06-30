@@ -1,11 +1,18 @@
 # web-spa
 
-Temporary Vue smoke dashboard for manually checking the currently available backend endpoints.
+Temporary Vue dashboard for manually checking the currently available backend endpoints and Phase 4 review operations.
 
 The SPA calls same-origin paths and Vite proxies them to the Go server during development:
 
 - `GET /healthz`
 - `GET /api/v1/skills`
+- `POST /api/v1/reviews`
+- `GET /api/v1/reviews`
+- `GET /api/v1/reviews/:id`
+- `GET /api/v1/reviews/:id/comments`
+- `GET /api/v1/reviews/:id/events`
+
+The Phase 4.5 review UI is intentionally limited to manual GitLab merge request review creation, history/detail inspection, read-only generated comments, and an SSE event log. It does not include publish/approval actions, repo CRUD, or repo memory management yet.
 
 ## Recommended IDE Setup
 
