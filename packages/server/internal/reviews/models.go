@@ -12,7 +12,10 @@ const (
 	StatusAwaitingApproval = "awaiting_approval"
 	StatusError            = "error"
 
-	CommentStatusPending = "pending"
+	CommentStatusPending          = "pending"
+	CommentStatusApproved         = "approved"
+	CommentStatusAcceptedDecision = "accepted_decision"
+	CommentStatusDiscarded        = "discarded"
 )
 
 type CreateRequest struct {
@@ -63,4 +66,8 @@ type HarnessError struct {
 	Dimension string `json:"dimension"`
 	Code      string `json:"code"`
 	Message   string `json:"message"`
+}
+
+type CommentStatusUpdate struct {
+	Status string `json:"status"`
 }

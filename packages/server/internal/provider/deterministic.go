@@ -17,7 +17,11 @@ func (p DeterministicReviewProvider) Complete(ctx context.Context, req Completio
 	}
 	dimension := detectDimension(req.System + "\n" + req.User)
 	content := fmt.Sprintf(`{"dimension":%q,"score":82,"findings":[{"severity":"SUGGESTION","file":"README.md","line_start":1,"line_end":1,"evidence":"Deterministic fake review evidence for %s.","why":"This deterministic finding keeps the Phase 4 review path testable without live providers.","suggestion_snippet":"Consider documenting this behavior.","inline_comment":true}],"summary":"Deterministic %s review completed.","verdict":"pass"}`, dimension, dimension, dimension)
-	return CompletionResponse{Content: content, ModelUsed: "fake-deterministic", InputTokens: 64, OutputTokens: 96}, nil
+	modelUsed := req.Model
+	if strings.TrimSpace(modelUsed) == "" {
+		modelUsed = "fake-deterministic"
+	}
+	return CompletionResponse{Content: content, ModelUsed: modelUsed, InputTokens: 64, OutputTokens: 96}, nil
 }
 
 func (p DeterministicReviewProvider) Name() string { return "fake-deterministic" }

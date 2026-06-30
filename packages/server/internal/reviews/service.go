@@ -2,6 +2,7 @@ package reviews
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -14,6 +15,7 @@ import (
 	"co-review/server/internal/harness"
 	"co-review/server/internal/platform"
 	"co-review/server/internal/provider"
+	repomemory "co-review/server/internal/repos"
 	"co-review/server/internal/skills"
 )
 
@@ -23,6 +25,8 @@ type Service struct {
 	Provider provider.ModelProvider
 	Skills   []skills.Skill
 	Broker   *events.Broker
+	Memory   *repomemory.Service
+	Repos    *repomemory.Service
 }
 
 func (s *Service) Create(ctx context.Context, req CreateRequest) (Review, error) {
@@ -32,7 +36,7 @@ func (s *Service) Create(ctx context.Context, req CreateRequest) (Review, error)
 	if strings.TrimSpace(req.ProjectURL) == "" && strings.TrimSpace(req.ProjectPath) == "" {
 		return Review{}, errInvalidInput("project_url or project_path is required")
 	}
-	if s.Repo == nil || s.Platform == nil || s.Provider == nil {
+	if s.Repo == nil || s.Platform == nil || s.Provider == nil || s.repoService() == nil {
 		return Review{}, errors.New("review service dependencies are not configured")
 	}
 	project := platform.ProjectIdentity{Platform: "gitlab", Path: strings.TrimSpace(req.ProjectPath), WebURL: strings.TrimSpace(req.ProjectURL)}
@@ -43,11 +47,15 @@ func (s *Service) Create(ctx context.Context, req CreateRequest) (Review, error)
 		}
 		project = inferred
 	}
-	repoID, err := s.Repo.UpsertRepo(ctx, project.Path, project.WebURL, project.Platform)
+	repoID, err := s.ensureRepo(ctx, project)
 	if err != nil {
 		return Review{}, err
 	}
-	review := Review{ID: stableID("review", fmt.Sprintf("%s:%d:%d", project.Path, req.MRIID, time.Now().UnixNano())), RepoID: repoID, ProjectPath: project.Path, ProjectURL: project.WebURL, Platform: project.Platform, MRID: strconv.Itoa(req.MRIID), Status: StatusPending, ModelUsed: s.Provider.Name()}
+	modelSelection, err := s.resolveModel(ctx, repoID)
+	if err != nil {
+		return Review{}, err
+	}
+	review := Review{ID: stableID("review", fmt.Sprintf("%s:%d:%d", project.Path, req.MRIID, time.Now().UnixNano())), RepoID: repoID, ProjectPath: project.Path, ProjectURL: project.WebURL, Platform: project.Platform, MRID: strconv.Itoa(req.MRIID), Status: StatusPending, ModelUsed: modelSelection.ModelUsed()}
 	if err := s.Repo.InsertReview(ctx, review); err != nil {
 		return Review{}, err
 	}
@@ -64,7 +72,11 @@ func (s *Service) Create(ctx context.Context, req CreateRequest) (Review, error)
 	if err := s.Repo.UpdateReviewContext(ctx, review); err != nil {
 		return s.reviewAfterFailure(ctx, review, s.fail(ctx, review.ID, []HarnessError{{Dimension: "persistence", Code: "REVIEW_CONTEXT_UPDATE_FAILED", Message: err.Error()}}))
 	}
-	results := s.runHarnesses(ctx, review.ID, mrCtx)
+	memoryContext, err := s.memoryContext(ctx, review.RepoID)
+	if err != nil {
+		return s.reviewAfterFailure(ctx, review, s.fail(ctx, review.ID, []HarnessError{{Dimension: "memory", Code: "MEMORY_CONTEXT_FAILED", Message: err.Error()}}))
+	}
+	results := s.runHarnesses(ctx, review.ID, mrCtx, memoryContext, modelSelection)
 	comments, scores, verdict, harnessErrors := buildOutputs(review.ID, results)
 	if len(harnessErrors) > 0 {
 		return s.reviewAfterFailure(ctx, review, s.fail(ctx, review.ID, harnessErrors))
@@ -98,6 +110,35 @@ func (s *Service) Comments(ctx context.Context, id string) ([]Comment, error) {
 	return s.Repo.ListComments(ctx, id)
 }
 
+func (s *Service) UpdateCommentStatus(ctx context.Context, reviewID, commentID, status string) (Comment, error) {
+	if !validCommentStatus(status) {
+		return Comment{}, errInvalidInput("status must be approved, accepted_decision, or discarded")
+	}
+	if status == CommentStatusAcceptedDecision {
+		if s.repoService() == nil {
+			return Comment{}, errors.New("repo memory service is not configured")
+		}
+		review, err := s.Repo.GetReview(ctx, reviewID)
+		if err != nil {
+			return Comment{}, err
+		}
+		comment, err := s.Repo.GetComment(ctx, reviewID, commentID)
+		if err != nil {
+			return Comment{}, err
+		}
+		content := strings.TrimSpace(comment.Why)
+		if content == "" {
+			content = strings.TrimSpace(comment.Evidence)
+		}
+		entry, err := repomemory.MemoryFromInput(review.RepoID, repomemory.MemoryInput{Type: repomemory.MemoryTypeAcceptedDecision, Key: comment.ID, Content: content, Dimension: comment.Dimension, SourceMR: review.MRID})
+		if err != nil {
+			return Comment{}, err
+		}
+		return s.Repo.AcceptCommentAsDecision(ctx, reviewID, commentID, entry)
+	}
+	return s.Repo.UpdateCommentStatus(ctx, reviewID, commentID, status)
+}
+
 func (s *Service) fail(ctx context.Context, reviewID string, errs []HarnessError) error {
 	raw, _ := json.Marshal(map[string]any{"errors": errs})
 	_ = s.Repo.UpdateReviewState(ctx, reviewID, StatusError, nil, "", raw, true)
@@ -114,7 +155,7 @@ func (s *Service) reviewAfterFailure(ctx context.Context, fallback Review, err e
 	return stored, err
 }
 
-func (s *Service) runHarnesses(ctx context.Context, reviewID string, mrCtx platform.MergeRequestContext) []harness.Result {
+func (s *Service) runHarnesses(ctx context.Context, reviewID string, mrCtx platform.MergeRequestContext, memoryContext string, model modelSelection) []harness.Result {
 	skillsToRun := s.Skills
 	if len(skillsToRun) == 0 {
 		skillsToRun = defaultSkills()
@@ -127,7 +168,7 @@ func (s *Service) runHarnesses(ctx context.Context, reviewID string, mrCtx platf
 		go func() {
 			defer wg.Done()
 			s.publish(reviewID, "agent.started", map[string]any{"review_id": reviewID, "dimension": sk.Dimension})
-			result := harness.Run(ctx, harness.Config{Dimension: sk.Dimension, Timeout: time.Duration(sk.Harness.TimeoutSeconds) * time.Second, MaxRetries: sk.Harness.MaxRetries, OutputSchema: sk.Harness.OutputSchema, MaxTokens: 1200}, s.Provider, harness.AgentPrompt{System: sk.Body, User: buildPrompt(sk.Dimension, mrCtx)})
+			result := harness.Run(ctx, harness.Config{Dimension: sk.Dimension, Timeout: time.Duration(sk.Harness.TimeoutSeconds) * time.Second, MaxRetries: sk.Harness.MaxRetries, OutputSchema: sk.Harness.OutputSchema, MaxTokens: 1200, ProviderName: model.Provider, ModelName: model.Model}, s.Provider, harness.AgentPrompt{System: sk.Body, User: buildPrompt(sk.Dimension, mrCtx, memoryContext)})
 			results[i] = result
 			if result.Error != nil {
 				s.publish(reviewID, "agent.error", map[string]any{"review_id": reviewID, "dimension": sk.Dimension, "error": result.Error})
@@ -140,9 +181,73 @@ func (s *Service) runHarnesses(ctx context.Context, reviewID string, mrCtx platf
 	return results
 }
 
-func buildPrompt(dimension string, mrCtx platform.MergeRequestContext) string {
+func buildPrompt(dimension string, mrCtx platform.MergeRequestContext, memoryContext string) string {
 	data, _ := json.Marshal(mrCtx)
-	return fmt.Sprintf("Review dimension: %s\nMerge request context JSON:\n%s", dimension, data)
+	prompt := fmt.Sprintf("Review dimension: %s\nMerge request context JSON:\n%s", dimension, data)
+	if strings.TrimSpace(memoryContext) != "" {
+		prompt += "\n\n" + memoryContext
+	}
+	return prompt
+}
+
+func (s *Service) memoryContext(ctx context.Context, repoID string) (string, error) {
+	if s.repoService() == nil {
+		return "", nil
+	}
+	return s.repoService().RenderPromptContext(ctx, repoID)
+}
+
+func (s *Service) ensureRepo(ctx context.Context, project platform.ProjectIdentity) (string, error) {
+	if svc := s.repoService(); svc != nil {
+		repo, err := svc.Ensure(ctx, repomemory.RepoInput{Name: project.Path, URL: project.WebURL, Platform: project.Platform})
+		if err != nil {
+			return "", err
+		}
+		return repo.ID, nil
+	}
+	return "", errors.New("repo service is not configured")
+}
+
+func (s *Service) repoService() *repomemory.Service {
+	if s.Repos != nil {
+		return s.Repos
+	}
+	return s.Memory
+}
+
+type modelSelection struct {
+	Provider string
+	Model    string
+	Source   string
+}
+
+func (m modelSelection) ModelUsed() string {
+	if strings.TrimSpace(m.Provider) == "" {
+		return m.Model
+	}
+	return m.Provider + "/" + m.Model
+}
+
+func (s *Service) resolveModel(ctx context.Context, repoID string) (modelSelection, error) {
+	if svc := s.repoService(); svc != nil {
+		cfg, err := svc.GetModel(ctx, repoID)
+		if err == nil {
+			return modelSelection{Provider: cfg.Provider, Model: cfg.ModelName, Source: "repo_config"}, nil
+		}
+		if err != sql.ErrNoRows {
+			return modelSelection{}, err
+		}
+	}
+	return modelSelection{Provider: s.Provider.Name(), Model: s.Provider.Name(), Source: "deterministic_fallback"}, nil
+}
+
+func validCommentStatus(status string) bool {
+	switch status {
+	case CommentStatusApproved, CommentStatusAcceptedDecision, CommentStatusDiscarded:
+		return true
+	default:
+		return false
+	}
 }
 
 func buildOutputs(reviewID string, results []harness.Result) ([]Comment, json.RawMessage, string, []HarnessError) {

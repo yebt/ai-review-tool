@@ -15,6 +15,7 @@ import (
 	"co-review/server/internal/events"
 	"co-review/server/internal/platform"
 	"co-review/server/internal/provider"
+	"co-review/server/internal/repos"
 	"co-review/server/internal/reviews"
 	"co-review/server/internal/skills"
 	skillassets "co-review/server/skills"
@@ -44,11 +45,12 @@ func main() {
 		os.Exit(1)
 	}
 	broker := events.NewBroker()
-	reviewService := &reviews.Service{Repo: reviews.NewRepository(database), Platform: gitlabClient, Provider: provider.DeterministicReviewProvider{}, Skills: loadedSkills, Broker: broker}
+	repoService := &repos.Service{Repo: repos.NewRepository(database)}
+	reviewService := &reviews.Service{Repo: reviews.NewRepository(database), Platform: gitlabClient, Provider: provider.DeterministicReviewProvider{}, Skills: loadedSkills, Broker: broker, Memory: repoService}
 
 	server := &http.Server{
 		Addr:              cfg.ListenAddr(),
-		Handler:           api.NewRouterWithDeps(api.RouterDeps{Reviews: reviewService, Broker: broker}),
+		Handler:           api.NewRouterWithDeps(api.RouterDeps{Reviews: reviewService, Repos: repoService, Broker: broker}),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 

@@ -302,21 +302,21 @@ Let users configure repos/models and avoid re-flagging accepted decisions.
 
 ### Deliverables
 
-- `POST/GET/PATCH/DELETE /api/v1/repos`.
-- `POST /api/v1/repos/infer` for GitLab URLs.
-- `GET/PUT /api/v1/repos/:id/model`.
-- `GET/POST/DELETE /api/v1/repos/:id/memory`.
-- Comment status update endpoint for `approved`, `accepted_decision`, and `discarded`.
+- [x] `POST/GET/PATCH/DELETE /api/v1/repos`.
+- [x] `POST /api/v1/repos/infer` for GitLab URLs.
+- [x] `GET/PUT /api/v1/repos/:id/model`.
+- [x] `GET/POST/DELETE /api/v1/repos/:id/memory`.
+- [x] Comment status update endpoint for `approved`, `accepted_decision`, and `discarded`.
 
 ### Verification / tests
 
-- API tests for repo CRUD, model config validation, and GitLab inference fallback behavior.
-- Memory tests for accepted-decision TTL rules and prompt-context rendering.
-- Regression test proving accepted decisions are injected into later review prompts.
+- [x] API tests for repo CRUD, model config validation, and GitLab inference fallback behavior.
+- [x] Memory tests for accepted-decision TTL rules and prompt-context rendering.
+- [x] Regression test proving accepted decisions are injected into later review prompts.
 
 ### Exit criteria
 
-- A repo can be configured once, reviewed repeatedly, and use accepted decisions as future context.
+- [x] A repo can be configured once, reviewed repeatedly, and use accepted decisions as future context.
 
 ## Phase 6 — Approval and GitLab inline publish flow
 

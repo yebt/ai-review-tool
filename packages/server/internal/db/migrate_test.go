@@ -45,6 +45,7 @@ func TestMigrateCreatesMVPSchema(t *testing.T) {
 		"idx_review_comments_dimension_severity",
 		"idx_repo_memory_repo_type",
 		"idx_repo_memory_repo_dimension",
+		"idx_repo_memory_repo_type_key",
 	} {
 		t.Run("index "+index, func(t *testing.T) {
 			assertIndexExists(t, database, index)

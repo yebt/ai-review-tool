@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"strconv"
 	"time"
+
+	repomemory "co-review/server/internal/repos"
 )
 
 type Repository struct {
@@ -16,16 +18,31 @@ type Repository struct {
 
 func NewRepository(db *sql.DB) *Repository { return &Repository{db: db} }
 
-func (r *Repository) UpsertRepo(ctx context.Context, name, url, platform string) (string, error) {
-	if err := r.fail("upsert_repo"); err != nil {
-		return "", err
-	}
-	id := stableID("repo", platform+":"+name)
-	_, err := r.db.ExecContext(ctx, `INSERT INTO repos(id,name,url,platform) VALUES(?,?,?,?) ON CONFLICT(name) DO UPDATE SET url=excluded.url, platform=excluded.platform`, id, name, url, platform)
+func (r *Repository) AcceptCommentAsDecision(ctx context.Context, reviewID, commentID string, entry repomemory.MemoryEntry) (Comment, error) {
+	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
-		return "", fmt.Errorf("upsert repo: %w", err)
+		return Comment{}, err
 	}
-	return id, nil
+	defer tx.Rollback()
+
+	res, err := tx.ExecContext(ctx, `UPDATE review_comments SET status=? WHERE review_id=? AND id=?`, CommentStatusAcceptedDecision, reviewID, commentID)
+	if err != nil {
+		return Comment{}, fmt.Errorf("update comment status: %w", err)
+	}
+	if err := requireAffected(res, sql.ErrNoRows); err != nil {
+		return Comment{}, err
+	}
+	if err := r.fail("create_memory"); err != nil {
+		return Comment{}, err
+	}
+	_, err = tx.ExecContext(ctx, `INSERT INTO repo_memory(id,repo_id,type,key,content,dimension,source_mr,expires_at) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(repo_id,type,key) DO UPDATE SET content=excluded.content, dimension=excluded.dimension, source_mr=excluded.source_mr, expires_at=excluded.expires_at, updated_at=datetime('now')`, entry.ID, entry.RepoID, entry.Type, entry.Key, entry.Content, nullableString(entry.Dimension), nullableString(entry.SourceMR), nullableTime(entry.ExpiresAt))
+	if err != nil {
+		return Comment{}, fmt.Errorf("create memory: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return Comment{}, err
+	}
+	return r.GetComment(ctx, reviewID, commentID)
 }
 
 func (r *Repository) InsertReview(ctx context.Context, review Review) error {
@@ -112,26 +129,38 @@ func (r *Repository) ListComments(ctx context.Context, reviewID string) ([]Comme
 		return nil, err
 	}
 	defer rows.Close()
-	var comments []Comment
-	for rows.Next() {
-		var c Comment
-		var lineStart, lineEnd sql.NullInt64
-		var created string
-		if err := rows.Scan(&c.ID, &c.ReviewID, &c.Dimension, &c.Severity, &c.File, &lineStart, &lineEnd, &c.Evidence, &c.Why, &c.SuggestionSnippet, &c.Status, &created); err != nil {
-			return nil, err
-		}
-		if lineStart.Valid {
-			v := int(lineStart.Int64)
-			c.LineStart = &v
-		}
-		if lineEnd.Valid {
-			v := int(lineEnd.Int64)
-			c.LineEnd = &v
-		}
-		c.CreatedAt = parseDBTime(created)
-		comments = append(comments, c)
+	return scanComments(rows)
+}
+
+func (r *Repository) GetComment(ctx context.Context, reviewID, commentID string) (Comment, error) {
+	rows, err := r.db.QueryContext(ctx, `SELECT id, review_id, dimension, severity, file, line_start, line_end, evidence, why, COALESCE(suggestion_snippet,''), status, created_at FROM review_comments WHERE review_id=? AND id=?`, reviewID, commentID)
+	if err != nil {
+		return Comment{}, err
 	}
-	return comments, rows.Err()
+	defer rows.Close()
+	comments, err := scanComments(rows)
+	if err != nil {
+		return Comment{}, err
+	}
+	if len(comments) == 0 {
+		return Comment{}, sql.ErrNoRows
+	}
+	return comments[0], nil
+}
+
+func (r *Repository) UpdateCommentStatus(ctx context.Context, reviewID, commentID, status string) (Comment, error) {
+	res, err := r.db.ExecContext(ctx, `UPDATE review_comments SET status=? WHERE review_id=? AND id=?`, status, reviewID, commentID)
+	if err != nil {
+		return Comment{}, fmt.Errorf("update comment status: %w", err)
+	}
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return Comment{}, err
+	}
+	if affected == 0 {
+		return Comment{}, sql.ErrNoRows
+	}
+	return r.GetComment(ctx, reviewID, commentID)
 }
 
 func (r *Repository) fail(op string) error {
@@ -170,6 +199,29 @@ func scanReviews(rows *sql.Rows) ([]Review, error) {
 	return out, rows.Err()
 }
 
+func scanComments(rows *sql.Rows) ([]Comment, error) {
+	var comments []Comment
+	for rows.Next() {
+		var c Comment
+		var lineStart, lineEnd sql.NullInt64
+		var created string
+		if err := rows.Scan(&c.ID, &c.ReviewID, &c.Dimension, &c.Severity, &c.File, &lineStart, &lineEnd, &c.Evidence, &c.Why, &c.SuggestionSnippet, &c.Status, &created); err != nil {
+			return nil, err
+		}
+		if lineStart.Valid {
+			v := int(lineStart.Int64)
+			c.LineStart = &v
+		}
+		if lineEnd.Valid {
+			v := int(lineEnd.Int64)
+			c.LineEnd = &v
+		}
+		c.CreatedAt = parseDBTime(created)
+		comments = append(comments, c)
+	}
+	return comments, rows.Err()
+}
+
 func nullableJSON(raw json.RawMessage) any {
 	if len(raw) == 0 {
 		return nil
@@ -181,6 +233,22 @@ func nullableString(s string) any {
 		return nil
 	}
 	return s
+}
+func nullableTime(t *time.Time) any {
+	if t == nil {
+		return nil
+	}
+	return t.UTC().Format(time.RFC3339)
+}
+func requireAffected(res sql.Result, notFound error) error {
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
+		return notFound
+	}
+	return nil
 }
 func parseDBTime(s string) time.Time {
 	t, _ := time.Parse(time.RFC3339, s)

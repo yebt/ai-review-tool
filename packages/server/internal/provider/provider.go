@@ -7,6 +7,7 @@ type CompletionRequest struct {
 	System    string
 	User      string
 	MaxTokens int
+	Provider  string
 	Model     string
 }
 

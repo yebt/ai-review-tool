@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"co-review/server/internal/events"
+	"co-review/server/internal/repos"
 	"co-review/server/internal/reviews"
 	"co-review/server/internal/skills"
 	skillassets "co-review/server/skills"
@@ -14,6 +15,7 @@ import (
 
 type RouterDeps struct {
 	Reviews *reviews.Service
+	Repos   *repos.Service
 	Broker  *events.Broker
 }
 
@@ -26,9 +28,20 @@ func NewRouterWithDeps(deps RouterDeps) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", healthHandler)
 	mux.HandleFunc("GET /api/v1/skills", skillsHandler)
+	if deps.Repos != nil {
+		mux.HandleFunc("POST /api/v1/repos", createRepoHandler(deps.Repos))
+		mux.HandleFunc("GET /api/v1/repos", listReposHandler(deps.Repos))
+		mux.HandleFunc("POST /api/v1/repos/infer", inferRepoHandler(deps.Repos))
+		mux.HandleFunc("GET /api/v1/repos/", repoSubresourceHandler(deps.Repos))
+		mux.HandleFunc("POST /api/v1/repos/", repoSubresourceHandler(deps.Repos))
+		mux.HandleFunc("PATCH /api/v1/repos/", repoSubresourceHandler(deps.Repos))
+		mux.HandleFunc("DELETE /api/v1/repos/", repoSubresourceHandler(deps.Repos))
+		mux.HandleFunc("PUT /api/v1/repos/", repoSubresourceHandler(deps.Repos))
+	}
 	mux.HandleFunc("POST /api/v1/reviews", createReviewHandler(deps.Reviews))
 	mux.HandleFunc("GET /api/v1/reviews", listReviewsHandler(deps.Reviews))
 	mux.HandleFunc("GET /api/v1/reviews/", reviewSubresourceHandler(deps.Reviews, deps.Broker))
+	mux.HandleFunc("PATCH /api/v1/reviews/", reviewSubresourceHandler(deps.Reviews, deps.Broker))
 	mux.HandleFunc("/api/v1/", apiNotFoundHandler)
 	mux.HandleFunc("/", rootNotFoundHandler)
 	return mux
@@ -110,6 +123,28 @@ func reviewSubresourceHandler(service *reviews.Service, broker *events.Broker) h
 				return
 			}
 			writeJSON(w, http.StatusOK, map[string]any{"comments": comments})
+			return
+		}
+		if len(parts) == 3 && parts[1] == "comments" && r.Method == http.MethodPatch {
+			var req reviews.CommentStatusUpdate
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				writeError(w, http.StatusBadRequest, "invalid_json", "Request body must be valid JSON", r.URL.Path)
+				return
+			}
+			comment, err := service.UpdateCommentStatus(r.Context(), reviewID, parts[2], req.Status)
+			if err == sql.ErrNoRows {
+				writeError(w, http.StatusNotFound, "comment_not_found", "Comment not found", r.URL.Path)
+				return
+			}
+			if reviews.IsInvalidInput(err) {
+				writeError(w, http.StatusBadRequest, "invalid_comment_status", err.Error(), r.URL.Path)
+				return
+			}
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, "comment_update_failed", err.Error(), r.URL.Path)
+				return
+			}
+			writeJSON(w, http.StatusOK, map[string]any{"comment": comment})
 			return
 		}
 		if len(parts) == 2 && parts[1] == "events" && r.Method == http.MethodGet {

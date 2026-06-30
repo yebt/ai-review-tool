@@ -17,6 +17,7 @@ import (
 	"co-review/server/internal/events"
 	"co-review/server/internal/platform"
 	"co-review/server/internal/provider"
+	"co-review/server/internal/repos"
 	"co-review/server/internal/reviews"
 )
 
@@ -83,6 +84,42 @@ func TestReviewsAPIReportsPlatformFailure(t *testing.T) {
 
 	if rec.Code != http.StatusAccepted {
 		t.Fatalf("status = %d, want 202: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestReviewsAPIUpdatesCommentStatusAndCreatesAcceptedDecisionMemory(t *testing.T) {
+	database := reviewsTestDB(t)
+	repoService := &repos.Service{Repo: repos.NewRepository(database)}
+	broker := events.NewBroker()
+	service := &reviews.Service{Repo: reviews.NewRepository(database), Platform: fakeAPIPlatform{}, Provider: provider.DeterministicReviewProvider{}, Broker: broker, Memory: repoService}
+	router := NewRouterWithDeps(RouterDeps{Reviews: service, Repos: repoService, Broker: broker})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/reviews", strings.NewReader(`{"project_url":"https://gitlab.com/acme/widget","mr_iid":7}`))
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create review status = %d: %s", rec.Code, rec.Body.String())
+	}
+	var created struct {
+		Review reviews.Review `json:"review"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &created); err != nil {
+		t.Fatalf("decode review: %v", err)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPatch, "/api/v1/reviews/"+created.Review.ID+"/comments/"+created.Review.Comments[0].ID, strings.NewReader(`{"status":"accepted_decision"}`))
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"status":"accepted_decision"`) {
+		t.Fatalf("patch comment response = %d: %s", rec.Code, rec.Body.String())
+	}
+
+	memory, err := repoService.ListMemory(context.Background(), created.Review.RepoID)
+	if err != nil {
+		t.Fatalf("ListMemory() error = %v", err)
+	}
+	if len(memory) != 1 || memory[0].Type != repos.MemoryTypeAcceptedDecision {
+		t.Fatalf("memory mismatch: %+v", memory)
 	}
 }
 
@@ -206,8 +243,10 @@ func testReviewService(t *testing.T, p provider.ModelProvider) (*reviews.Service
 
 func testReviewServiceWithPlatform(t *testing.T, platformClient platform.PlatformClient, p provider.ModelProvider) (*reviews.Service, *events.Broker) {
 	t.Helper()
+	database := reviewsTestDB(t)
+	repoService := &repos.Service{Repo: repos.NewRepository(database)}
 	broker := events.NewBroker()
-	return &reviews.Service{Repo: reviews.NewRepository(reviewsTestDB(t)), Platform: platformClient, Provider: p, Broker: broker}, broker
+	return &reviews.Service{Repo: reviews.NewRepository(database), Platform: platformClient, Provider: p, Broker: broker, Memory: repoService}, broker
 }
 
 func reviewsTestDB(t *testing.T) *sql.DB {

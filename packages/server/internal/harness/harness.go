@@ -29,6 +29,8 @@ type Config struct {
 	MaxRetries   int
 	OutputSchema string
 	MaxTokens    int
+	ProviderName string
+	ModelName    string
 	RetryBackoff time.Duration
 }
 
@@ -82,6 +84,8 @@ func Run(ctx context.Context, cfg Config, p provider.ModelProvider, prompt Agent
 			System:    prompt.System,
 			User:      prompt.User,
 			MaxTokens: cfg.MaxTokens,
+			Provider:  cfg.ProviderName,
+			Model:     cfg.ModelName,
 		})
 		cancel()
 
