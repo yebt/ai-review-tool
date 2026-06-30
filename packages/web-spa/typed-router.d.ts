@@ -38,6 +38,34 @@ declare module 'vue-router/auto-routes' {
       Record<never, never>,
       | never
     >,
+    '/health': RouteRecordInfo<
+      '/health',
+      '/health',
+      Record<never, never>,
+      Record<never, never>,
+      | never
+    >,
+    '/repos': RouteRecordInfo<
+      '/repos',
+      '/repos',
+      Record<never, never>,
+      Record<never, never>,
+      | never
+    >,
+    '/reviews': RouteRecordInfo<
+      '/reviews',
+      '/reviews',
+      Record<never, never>,
+      Record<never, never>,
+      | never
+    >,
+    '/skills': RouteRecordInfo<
+      '/skills',
+      '/skills',
+      Record<never, never>,
+      Record<never, never>,
+      | never
+    >,
   }
 
   /**
@@ -54,6 +82,38 @@ declare module 'vue-router/auto-routes' {
     'src/pages/index.vue': {
       routes:
         | '/'
+      views:
+        | never
+      pathParamNames:
+        | never
+    }
+    'src/pages/health.vue': {
+      routes:
+        | '/health'
+      views:
+        | never
+      pathParamNames:
+        | never
+    }
+    'src/pages/repos.vue': {
+      routes:
+        | '/repos'
+      views:
+        | never
+      pathParamNames:
+        | never
+    }
+    'src/pages/reviews.vue': {
+      routes:
+        | '/reviews'
+      views:
+        | never
+      pathParamNames:
+        | never
+    }
+    'src/pages/skills.vue': {
+      routes:
+        | '/skills'
       views:
         | never
       pathParamNames:

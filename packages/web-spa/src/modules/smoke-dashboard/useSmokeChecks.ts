@@ -65,30 +65,6 @@ async function readJson(path: string): Promise<unknown> {
   return data
 }
 
-export function useSmokeChecks() {
-  const { health, loadHealth } = useHealthCheck()
-  const { skills, skillsCount, loadSkills } = useSkillsCheck()
-  const isRefreshing = shallowRef(false)
-
-  async function refresh() {
-    isRefreshing.value = true
-
-    try {
-      await Promise.all([loadHealth(), loadSkills()])
-    } finally {
-      isRefreshing.value = false
-    }
-  }
-
-  return {
-    health,
-    skills,
-    skillsCount,
-    isRefreshing: readonly(isRefreshing),
-    refresh,
-  }
-}
-
 export function useHealthCheck() {
   const health = shallowRef<CheckState<HealthResponse>>(createIdleState())
 

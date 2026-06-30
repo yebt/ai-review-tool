@@ -11,7 +11,7 @@ Build a testable MVP of Co-Review v2 that can review GitLab merge requests, gene
 | Repository layout | Root contains `docs/`, `packages/`, skill/config folders, and this TODO. |
 | Product spec | Main architecture/specification lives in `docs/docs/SPECS.md`. |
 | Packages | `packages/` contains `server/` and `web-spa/`; `cli/` is still planned. |
-| Web SPA | Vue 3 + Vite + Pinia + Tailwind CSS v4 + Vitest exists, with a brutalist smoke dashboard for `/healthz` and `/api/v1/skills`. |
+| Web SPA | Vue 3 + Vite + Pinia + Tailwind CSS v4 + Vitest exists, with brutalist Phase 4.5 route separation for `/`, `/health`, `/skills`, `/reviews`, and `/repos`. |
 | Backend | `packages/server` exists as a Go backend with health/API routing, SQLite migrations, provider abstraction, skill loading, harness core, and GitLab MR diff ingestion. |
 | CLI | No Go CLI package exists yet. |
 | Database | SQLite connection and embedded MVP migrations exist in `packages/server`. |
@@ -273,15 +273,18 @@ Expose the Phase 4 backend review actions in the SPA for manual testing before t
 - [x] Select a review and load `GET /api/v1/reviews/:id` plus generated comments from `GET /api/v1/reviews/:id/comments`.
 - [x] Open an EventSource stream for `GET /api/v1/reviews/:id/events` and display review/agent events.
 - [x] Keep current limitations visible: no publish/approval UI, no repo CRUD, no repo memory UI, and backend provider behavior may be deterministic/fake.
+- [x] Separate Phase 4.5 actions into independent file-based routes: `/` capability map, `/health`, `/skills`, `/reviews`, and `/repos` Phase 5 placeholder.
 
 ### Verification / tests
 
 - [x] Vitest tests mock `fetch` and `EventSource`; no Go server is required for unit tests.
 - [x] Response shapes are validated with Zod for review creation, list, detail, and comments.
+- [x] Route/page tests prove home is a static capability map, health and skills load independently, and `/repos` remains a placeholder.
 
 ### Exit criteria
 
 - [x] A developer can start the local server and SPA, create a fake/deterministic GitLab MR review, inspect comments, and watch selected review events without touching final Phase 7 flows.
+- [x] Review operations live on `/reviews` instead of being mixed into the home page.
 
 ## Phase 5 — Repo configuration and repo memory MVP
 

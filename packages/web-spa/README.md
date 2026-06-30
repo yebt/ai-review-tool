@@ -1,6 +1,6 @@
 # web-spa
 
-Temporary Vue dashboard for manually checking the currently available backend endpoints and Phase 4 review operations.
+Temporary Vue dashboard for manually checking the currently available backend endpoints and Phase 4.5 review operations.
 
 The SPA calls same-origin paths and Vite proxies them to the Go server during development:
 
@@ -13,6 +13,18 @@ The SPA calls same-origin paths and Vite proxies them to the Go server during de
 - `GET /api/v1/reviews/:id/events`
 
 The Phase 4.5 review UI is intentionally limited to manual GitLab merge request review creation, history/detail inspection, read-only generated comments, and an SSE event log. It does not include publish/approval actions, repo CRUD, or repo memory management yet.
+
+## Phase 4.5 route map
+
+The SPA uses file-based Vue Router routes from `src/pages` and keeps each action on an independent page:
+
+- `/` — static capability map and checkpoints for available/upcoming actions.
+- `/health` — backend health check only (`GET /healthz`).
+- `/skills` — loaded 4R skill metadata only (`GET /api/v1/skills`).
+- `/reviews` — Phase 4.5 review operations: create/list/detail/comments/SSE.
+- `/repos` — Phase 5 placeholder/status page only. It does not call repo endpoints or implement CRUD behavior.
+
+Home intentionally does not load health, skills, or review data. Publish/approval, repo CRUD/memory, the final Phase 7 review UI, and CLI workflows remain out of scope for this temporary navigation layer.
 
 ## Recommended IDE Setup
 
